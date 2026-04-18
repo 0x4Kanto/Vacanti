@@ -1,0 +1,153 @@
+#include <ncurses.h>
+#include <dirent.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+
+#define MAX_FILES 1024
+
+char *files[MAX_FILES];
+int file_count = 0;
+
+int is_image(const char *name) {
+    const char *ext = strrchr(name, '.');
+    if (!ext) return 0;
+    return (strcasecmp(ext, ".png") == 0 ||
+            strcasecmp(ext, ".jpg") == 0 ||
+            strcasecmp(ext, ".jpeg") == 0 ||
+            strcasecmp(ext, ".bmp") == 0);
+}
+
+void free_files() {
+    for (int i = 0; i < file_count; i++) {
+        free(files[i]);
+    }
+}
+
+void load_dir(const char *path) {
+    DIR *d = opendir(path);
+    struct dirent *dir;
+
+    free_files();
+    file_count = 0;
+
+    while ((dir = readdir(d)) != NULL && file_count < MAX_FILES) {
+        files[file_count++] = strdup(dir->d_name);
+    }
+
+    closedir(d);
+}
+
+void view_image(const char *filename) {
+    // Stop ncurses before SDL
+    endwin();
+
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) return;
+    IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG);
+
+    SDL_Surface *image = IMG_Load(filename);
+    if (!image) goto cleanup;
+
+    SDL_Window *window = SDL_CreateWindow(
+        filename,
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        image->w,
+        image->h,
+        0
+    );
+
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, 0);
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, image);
+    SDL_FreeSurface(image);
+
+    int running = 1;
+    SDL_Event e;
+
+    while (running) {
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_QUIT || e.type == SDL_KEYDOWN) {
+                running = 0;
+            }
+        }
+
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        SDL_RenderPresent(renderer);
+    }
+
+    SDL_DestroyTexture(texture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+
+cleanup:
+    IMG_Quit();
+    SDL_Quit();
+
+    // Restore ncurses
+    initscr();
+    noecho();
+    keypad(stdscr, TRUE);
+}
+
+int main() {
+    char cwd[1024];
+    getcwd(cwd, sizeof(cwd));
+
+    initscr();
+    noecho();
+    keypad(stdscr, TRUE);
+
+    int highlight = 0;
+    int ch;
+
+    load_dir(cwd);
+
+    while (1) {
+        clear();
+        mvprintw(0, 0, "Dir: %s (q to quit)", cwd);
+
+        for (int i = 0; i < file_count; i++) {
+            if (i == highlight) attron(A_REVERSE);
+            mvprintw(i + 1, 0, "%s", files[i]);
+            if (i == highlight) attroff(A_REVERSE);
+        }
+
+        ch = getch();
+
+        switch (ch) {
+            case KEY_UP:
+                highlight = (highlight - 1 + file_count) % file_count;
+                break;
+
+            case KEY_DOWN:
+                highlight = (highlight + 1) % file_count;
+                break;
+
+            case 10: {
+                char path[2048];
+                snprintf(path, sizeof(path), "%s/%s", cwd, files[highlight]);
+
+                struct stat st;
+                stat(path, &st);
+
+                if (S_ISDIR(st.st_mode)) {
+                    chdir(path);
+                    getcwd(cwd, sizeof(cwd));
+                    load_dir(cwd);
+                    highlight = 0;
+                } else if (is_image(files[highlight])) {
+                    view_image(path);
+                }
+                break;
+            }
+
+            case 'q':
+                endwin();
+                return 0;
+        }
+    }
+}
