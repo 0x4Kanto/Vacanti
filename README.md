@@ -1,5 +1,5 @@
 # Vacanti
-  Small img viewer fully in C, still working on features for it.
+  Shell image viewer written in C
 
 # Dependencies
 -  you need ncurses and SDL2:
@@ -7,6 +7,5 @@
 -  Debian/Any other distro with apt > sudo apt install libsdl2-dev libsdl2-image-dev ibncurses-dev
 
 # Build
-  Build it with 
-  -  gcc vacanti.c -o vacanti $(sdl2-config --cflags --libs) -lSDL2_image -lncurses
-  -  ^Makefile is comining soon dw.
+  - sudo make install
+  - sudo make uninstall
