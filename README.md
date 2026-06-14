@@ -4,7 +4,7 @@
 # Dependencies
 -  you need ncurses and SDL2:
 -  Arch > sudo pacman -S sdl2 sdl2_image ncurses
--  Debian/Any other distro with apt > sudo apt install libsdl2-dev libsdl2-image-dev ibncurses-dev
+-  Debian/Any other distro with apt > sudo apt install libsdl2-dev libsdl2-image-dev libncurses-dev
 
 # Build
   - sudo make install
